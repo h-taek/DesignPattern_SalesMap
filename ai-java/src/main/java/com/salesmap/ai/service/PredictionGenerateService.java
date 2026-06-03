@@ -65,7 +65,8 @@ public class PredictionGenerateService {
         double predicted = predictor.predict(Quarter.toIndex(tq));
         var params = predictor.params();
 
-        long predictedSales = Math.max(Math.round(predicted), 0L);
+        // Python round()와 동일한 banker's rounding (half-to-even)
+        long predictedSales = Math.max((long) Math.rint(predicted), 0L);
         return new CellPrediction(
             regionId,
             industry,
@@ -171,7 +172,8 @@ public class PredictionGenerateService {
             long v = values[i];
             if (v < lo || v > hi) clipped++;
             double cv = Math.min(Math.max((double) v, lo), hi);
-            out[i] = Math.round(cv);
+            // Python int(round(...))와 동일한 banker's rounding
+            out[i] = (long) Math.rint(cv);
         }
         return new ClipResult(out, clipped);
     }
