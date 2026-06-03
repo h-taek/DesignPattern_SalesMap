@@ -144,11 +144,27 @@ public class SalesIngestService {
         return out;
     }
 
+    /**
+     * 행 내용 전체의 64-bit FNV-1a 해시.
+     * Python hash(tuple(...))와 동급의 충돌 저항(64-bit) — 수만 행 규모에서 충돌 확률 사실상 0.
+     * (기존 List.hashCode() 기반 32-bit 지문은 ~2만 행 수집 시 회당 ~5% 확률로
+     *  서로 다른 행이 중복 판정되어 조용히 누락되는 문제가 있었음)
+     * key/value 경계는 0x1F(unit separator)로 보존 — Python 튜플 (k, v)의 경계 의미론과 동일.
+     */
     private static long rawFingerprint(Map<String, Object> raw) {
         List<String> entries = new ArrayList<>(raw.size());
-        for (var e : raw.entrySet()) entries.add(e.getKey() + "=" + e.getValue());
+        for (var e : raw.entrySet()) entries.add(e.getKey() + '\u001F' + e.getValue());
         Collections.sort(entries);
-        return entries.hashCode() * 1_000_003L + entries.size();
+        long h = 0xcbf29ce484222325L; // FNV-1a offset basis
+        for (String s : entries) {
+            for (int i = 0; i < s.length(); i++) {
+                h ^= s.charAt(i);
+                h *= 0x100000001b3L; // FNV-1a prime
+            }
+            h ^= 0x1E; // 엔트리 구분자 (record separator)
+            h *= 0x100000001b3L;
+        }
+        return h;
     }
 
     private static String toApiQuarter(String q) {
